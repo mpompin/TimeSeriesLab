@@ -16,6 +16,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, Normalizer
 # https://github.com/Ferdib-Al-Islam/lstm-time-series-prediction-pytorch/blob/master/lstm-time-series-pytorch.ipynb
 # https://github.com/hunkim/PyTorchZeroToAll
 # https://towardsdatascience.com/tutorial-on-lstm-a-computational-perspective-f3417442c2cd
+# https://www.kaggle.com/akhileshrai/tutorial-early-stopping-vanilla-rnn-pytorch
 # '''
 #
 # def scaling_window(data, seq_length):
@@ -147,29 +148,32 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
-        self.batch_size = batch_size
         self.n_layers = n_layers
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=n_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=n_layers, batch_first=True,)
         self.fc = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
-       (h0, c0) = (torch.zeros(size=(self.n_layers, self.batch_size, self.hidden_dim)),
-                    torch.zeros(size=(self.n_layers, self.batch_size, self.hidden_dim)))
+       (h0, c0) = (torch.zeros(size=(self.n_layers, x.size(0), self.hidden_dim)),
+                    torch.zeros(size=(self.n_layers, x.size(0), self.hidden_dim)))
 
-       x = x.view(self.batch_size, -1, self.input_dim)
+       x = x.view(x.size(0), -1, self.input_dim)
        lstm_out, _ = self.lstm(x, (h0, c0))
        last_out = lstm_out[:, -1, :]
        out = self.fc(last_out)
        return out
 
 # #model hyperparameters
-sequence_len = 5
-batch_size = 1
+sequence_len = 10
+batch_size = 5
 n_layers = 1
 hidden_dim = 3
-epochs = 50
+epochs = 500
+stop_epochs = 5
 lr = 1e-3
-params = dict(sequence_len=sequence_len, batch_size=batch_size, n_layers=n_layers, hidden_dim=hidden_dim, epochs=epochs, lr=lr)
+params = dict(sequence_len=sequence_len, batch_size=batch_size,
+              n_layers=n_layers, hidden_dim=hidden_dim,
+              epochs=epochs, lr=lr,
+              stop_epochs=stop_epochs)
 
 # #generate data
 n = 1000
@@ -178,7 +182,7 @@ wM = np.random.normal(0, 1, size=(n, 1))
 xM[0] = wM[0]
 for t in np.arange(1, n):
     xM[t] = 0.6 * xM[t - 1] + wM[t]
-xM = np.sin(2 * np.pi * 5 * np.linspace(0, 1, n)).reshape(-1, 1)
+# xM = np.sin(2 * np.pi * 5 * np.linspace(0, 1, n)).reshape(-1, 1)
 
 # #split train-test set
 train_proportion = 0.7
@@ -206,7 +210,8 @@ optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
 
 # #train model
 torch.manual_seed(1)
-train_losses = []
+train_losses = np.full(shape=epochs, fill_value=np.nan)
+min_loss = np.inf
 for epoch in np.arange(epochs):
     for i, x_ in enumerate(X_train):
         if i + batch_size > X_train.shape[0]:
@@ -223,9 +228,20 @@ for epoch in np.arange(epochs):
         optimizer.zero_grad()
         loss_.backward()
         optimizer.step()
-    train_losses.append(loss_.item())
+    # #store epoch loss
+    train_losses[epoch] = loss_.item()
+    # #show current loss
     if (epoch+1) % 5 == 0:
         print(f'Epoch{epoch+1}/{epochs} - Loss:{loss_.item():.4f}')
+    # #early stopping implementation
+    if loss_.item() < min_loss:
+        min_loss = loss_.item()
+        epoch_no_improve = 0
+    else:
+        epoch_no_improve += 1
+    if epoch_no_improve > stop_epochs:
+        print(f'Early Stop at epoch {epoch+1} from total {epochs}')
+        break
 
 print('Model trained')
 fig, ax = plt.subplots(1, 1)
@@ -252,12 +268,13 @@ y_test = torch.FloatTensor(y_test)
 with torch.no_grad():
     predictions = []
     for x_  in torch.cat([X_train, X_test]):
+        x_ = x_.unsqueeze(0)
         y_hat = model(x_)
         predictions.append(y_hat.numpy()[0])
 predictions = np.array(predictions)
 # #calculate in-sample --- out-of-sample nrmse
-nrmse_insample = np.sqrt(np.mean((y_train.numpy() - predictions[:X_train.shape[0]]) **2 )) / np.std(y_train.numpy())
-nrmse_outsample = np.sqrt(np.mean((y_test.numpy() - predictions[X_train.shape[0]:])**2)) / np.std(y_test.numpy())
+nrmse_insample = np.sqrt(np.mean((y_train.numpy() - predictions[:X_train.shape[0]]) ** 2 )) / np.std(y_train.numpy())
+nrmse_outsample = np.sqrt(np.mean((y_test.numpy() - predictions[X_train.shape[0]:]) ** 2)) / np.std(y_test.numpy())
 # #plot results
 # #whole sample
 fig, ax = plt.subplots(3, 1)
