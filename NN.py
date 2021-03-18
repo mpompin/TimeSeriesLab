@@ -163,12 +163,12 @@ class LSTM(nn.Module):
        return out
 
 # #model hyperparameters
-sequence_len = 10
-batch_size = 5
+sequence_len = 5
+batch_size = 10
 n_layers = 1
 hidden_dim = 3
 epochs = 500
-stop_epochs = 5
+stop_epochs = 10
 lr = 1e-3
 params = dict(sequence_len=sequence_len, batch_size=batch_size,
               n_layers=n_layers, hidden_dim=hidden_dim,
@@ -176,12 +176,12 @@ params = dict(sequence_len=sequence_len, batch_size=batch_size,
               stop_epochs=stop_epochs)
 
 # #generate data
-n = 1000
+n = 10_000
 xM = np.full(shape=(n, 1), fill_value=np.nan)
 wM = np.random.normal(0, 1, size=(n, 1))
 xM[0] = wM[0]
 for t in np.arange(1, n):
-    xM[t] = 0.6 * xM[t - 1] + wM[t]
+    xM[t] = 0.8 * xM[t - 1] + wM[t]
 # xM = np.sin(2 * np.pi * 5 * np.linspace(0, 1, n)).reshape(-1, 1)
 
 # #split train-test set
@@ -209,11 +209,13 @@ loss = nn.MSELoss()
 optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
 
 # #train model
+print('Training model', end='***')
 torch.manual_seed(1)
 train_losses = np.full(shape=epochs, fill_value=np.nan)
 min_loss = np.inf
+total_maxsteps = np.arange(0, X_train.shape[0], batch_size).size * epochs
 for epoch in np.arange(epochs):
-    for i, x_ in enumerate(X_train):
+    for i in np.arange(0, X_train.shape[0], batch_size):
         if i + batch_size > X_train.shape[0]:
             break
         x_ = X_train[i:i+batch_size]
@@ -233,6 +235,7 @@ for epoch in np.arange(epochs):
     # #show current loss
     if (epoch+1) % 5 == 0:
         print(f'Epoch{epoch+1}/{epochs} - Loss:{loss_.item():.4f}')
+        print(f'Step{np.arange(0, X_train.shape[0], batch_size).size * (epoch+1)}/{total_maxsteps}')
     # #early stopping implementation
     if loss_.item() < min_loss:
         min_loss = loss_.item()
@@ -281,17 +284,17 @@ fig, ax = plt.subplots(3, 1)
 plt.suptitle(f'LSTM')
 ax[0].plot(predictions, label='pred', alpha=0.8, linestyle='--')
 ax[0].axvline(split_point, color='red', linestyle='-')
-ax[0].plot(torch.cat([y_train, y_test]).numpy(), label='true')
+ax[0].plot(torch.cat([y_train, y_test]).numpy(), label='true', alpha=0.5)
 ax[0].legend()
 ax[0].set_title('True - Predicted')
 # #in sample
 ax[1].plot(predictions[:X_train.shape[0]], label='pred', alpha=0.8, linestyle='--')
-ax[1].plot(y_train.numpy(), label='true')
+ax[1].plot(y_train.numpy(), label='true', alpha=0.5)
 ax[1].legend()
 ax[1].set_title('In sample (fit-train model)')
 # #out of sample
 ax[2].plot(predictions[X_train.shape[0]:], label='pred', alpha=0.8, linestyle='--')
-ax[2].plot(y_test.numpy(), label='true')
+ax[2].plot(y_test.numpy(), label='true', alpha=0.5)
 ax[2].legend()
 ax[2].set_title('Out if sample (fit-test model)')
 plt.show()
