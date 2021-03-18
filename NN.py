@@ -166,8 +166,8 @@ class LSTM(nn.Module):
 sequence_len = 5
 batch_size = 1
 n_layers = 1
-hidden_dim = 5
-epochs = 100
+hidden_dim = 3
+epochs = 50
 lr = 1e-3
 params = dict(sequence_len=sequence_len, batch_size=batch_size, n_layers=n_layers, hidden_dim=hidden_dim, epochs=epochs, lr=lr)
 
@@ -178,6 +178,7 @@ wM = np.random.normal(0, 1, size=(n, 1))
 xM[0] = wM[0]
 for t in np.arange(1, n):
     xM[t] = 0.6 * xM[t - 1] + wM[t]
+xM = np.sin(2 * np.pi * 5 * np.linspace(0, 1, n)).reshape(-1, 1)
 
 # #split train-test set
 train_proportion = 0.7
@@ -252,11 +253,11 @@ with torch.no_grad():
     predictions = []
     for x_  in torch.cat([X_train, X_test]):
         y_hat = model(x_)
-        predictions.append(y_hat)
-
+        predictions.append(y_hat.numpy()[0])
+predictions = np.array(predictions)
 # #calculate in-sample --- out-of-sample nrmse
-nrmse_insample = np.sqrt(np.mean((y_train.numpy() - predictions[:X_train.shape[0]])**2)) / np.var(y_train.numpy())
-nrmse_outsample = np.sqrt(np.mean((y_test.numpy() - predictions[X_train.shape[0]:])**2)) / np.var(y_test.numpy())
+nrmse_insample = np.sqrt(np.mean((y_train.numpy() - predictions[:X_train.shape[0]]) **2 )) / np.std(y_train.numpy())
+nrmse_outsample = np.sqrt(np.mean((y_test.numpy() - predictions[X_train.shape[0]:])**2)) / np.std(y_test.numpy())
 # #plot results
 # #whole sample
 fig, ax = plt.subplots(3, 1)
@@ -276,6 +277,10 @@ ax[2].plot(predictions[X_train.shape[0]:], label='pred', alpha=0.8, linestyle='-
 ax[2].plot(y_test.numpy(), label='true')
 ax[2].legend()
 ax[2].set_title('Out if sample (fit-test model)')
+plt.show()
+print(f'Params:{params}', end='\n')
+print(f'Nrmse:{nrmse_insample} - {nrmse_outsample}', end='\n')
+print()
 # # #table with parameters
 # plt.tight_layout(h_pad=0.2)
 # cell_text = [np.float(i) for i in params.values()]
