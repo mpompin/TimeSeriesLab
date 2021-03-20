@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import torch.nn as nn
 import torch
-import json
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, Normalizer
+
+
 
 # '''
 # https://stackabuse.com/time-series-prediction-using-lstm-with-pytorch-in-python/
@@ -142,6 +143,8 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler, Normalizer
 #
 # print()
 
+def calculate_nrmse(true, pred):
+    return np.sqrt(np.mean((true - pred) ** 2)) / np.std(true)
 
 class LSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, batch_size, n_layers):
@@ -166,7 +169,7 @@ class LSTM(nn.Module):
 sequence_len = 5
 batch_size = 10
 n_layers = 1
-hidden_dim = 3
+hidden_dim = 5
 epochs = 500
 stop_epochs = 10
 lr = 1e-3
@@ -176,19 +179,28 @@ params = dict(sequence_len=sequence_len, batch_size=batch_size,
               stop_epochs=stop_epochs)
 
 # #generate data
-n = 10_000
+n = 1_000
 xM = np.full(shape=(n, 1), fill_value=np.nan)
 wM = np.random.normal(0, 1, size=(n, 1))
 xM[0] = wM[0]
 for t in np.arange(1, n):
     xM[t] = 0.8 * xM[t - 1] + wM[t]
 # xM = np.sin(2 * np.pi * 5 * np.linspace(0, 1, n)).reshape(-1, 1)
+# xM = pd.read_csv('./airline_passengers.txt')
+# xM = xM['Passengers'].values.reshape(-1, 1)
+# n = xM.shape[0]
 
 # #split train-test set
 train_proportion = 0.7
 split_point = np.int(train_proportion * n)
 train_set = xM[:split_point]
 test_set = xM[split_point:]
+# #normalise data
+scaler = MinMaxScaler()
+train_set = scaler.fit_transform(train_set)
+test_set = scaler.fit_transform(test_set)
+plt.plot(np.arange(split_point), train_set)
+plt.plot(np.arange(split_point, n), test_set)
 
 # #create sequences for LSTM input
 X_train = []
@@ -275,9 +287,11 @@ with torch.no_grad():
         y_hat = model(x_)
         predictions.append(y_hat.numpy()[0])
 predictions = np.array(predictions)
+
 # #calculate in-sample --- out-of-sample nrmse
-nrmse_insample = np.sqrt(np.mean((y_train.numpy() - predictions[:X_train.shape[0]]) ** 2 )) / np.std(y_train.numpy())
-nrmse_outsample = np.sqrt(np.mean((y_test.numpy() - predictions[X_train.shape[0]:]) ** 2)) / np.std(y_test.numpy())
+nrmse_insample = calculate_nrmse(true=y_train.numpy(), pred=predictions[:X_train.shape[0]])
+nrmse_outsample = calculate_nrmse(true=y_test.numpy(), pred=predictions[X_train.shape[0]:])
+
 # #plot results
 # #whole sample
 fig, ax = plt.subplots(3, 1)
@@ -301,11 +315,4 @@ plt.show()
 print(f'Params:{params}', end='\n')
 print(f'Nrmse:{nrmse_insample} - {nrmse_outsample}', end='\n')
 print()
-# # #table with parameters
-# plt.tight_layout(h_pad=0.2)
-# cell_text = [np.float(i) for i in params.values()]
-# colLabels = [str(i) for i in params.keys()]
-# plt.table(cellText=[cell_text],
-#           colLabels=colLabels,
-#           loc='bottom',
-#           )
+

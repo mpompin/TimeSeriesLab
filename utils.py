@@ -101,3 +101,6 @@ def add_stochastic_trend(xV):
     wV = rolling_window(zV, window=maorder)
     yV = xV + wV
     return yV
+
+def arcoef2autocorr():
+    pass
