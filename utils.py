@@ -3,6 +3,7 @@ helper functions
 '''
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -104,3 +105,30 @@ def add_stochastic_trend(xV):
 
 def arcoef2autocorr():
     pass
+
+def plot_3d_attractor(xM):
+    fig = plt.figure(figsize=(14, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(xM[:, [0]], xM[:, [1]], xM[:, [2]])
+    plt.show()
+
+def embed_data(x, order=3, delay=1):
+	"""Time-delay embedding.
+	Parameters
+	----------
+	x : 1d-array, shape (n_times)
+		Time series
+	order : int
+		Embedding dimension (order)
+	delay : int
+		Delay.
+	Returns
+	-------
+	embedded : ndarray, shape (n_times - (order - 1) * delay, order)
+		Embedded time-series.
+	"""
+	N = len(x)
+	Y = np.empty((order, N - (order - 1) * delay))
+	for i in range(order):
+		Y[i] = x[i * delay:i * delay + Y.shape[1]]
+	return Y.T
